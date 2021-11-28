@@ -1,6 +1,6 @@
 package com.zqq.demo;
 
-import com.zqq.spring.ZqqApplicationContext;
+import com.spring.ZqqApplicationContext;
 
 public class Test {
     public static void main(String[] args) {

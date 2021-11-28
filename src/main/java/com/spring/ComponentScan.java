@@ -1,4 +1,4 @@
-package com.zqq.spring;
+package com.spring;
 
 
 import java.lang.annotation.ElementType;
@@ -8,6 +8,6 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)   //注解的生命周期
 @Target(ElementType.TYPE)        //注解的作用范围
-public @interface Component {
-   public String value() default "";
+public @interface ComponentScan {
+   public String value();
 }

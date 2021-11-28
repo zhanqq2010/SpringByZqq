@@ -1,8 +1,8 @@
 package com.zqq.demo;
 
 
-import com.zqq.spring.ComponentScan;
+import com.spring.ComponentScan;
 
-@ComponentScan("com.zqq.demo.service")
+@ComponentScan("com.zqq.demo")
 public class AppConfig {
 }

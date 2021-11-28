@@ -1,4 +1,4 @@
-package com.zqq.spring;
+package com.spring;
 
 public class Utils {
     //首字母转小写

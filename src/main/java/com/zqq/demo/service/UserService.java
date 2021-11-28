@@ -1,8 +1,7 @@
 package com.zqq.demo.service;
 
 
-import com.zqq.spring.Component;
-import com.zqq.spring.Scope;
+import com.spring.Component;
 
 @Component
 //@Scope("prototype")
