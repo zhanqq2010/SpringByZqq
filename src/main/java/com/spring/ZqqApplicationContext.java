@@ -1,11 +1,15 @@
 package com.spring;
 
+import com.zqq.demo.ZqqBeanPostProcessor;
+
 import java.io.File;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -13,7 +17,12 @@ public class ZqqApplicationContext {
 
     private Class configClass;
     private Map<String, Object> singletonObjects = new ConcurrentHashMap<>();
-    private Map<String, BeanDefinition> beanDefinitionMap = new ConcurrentHashMap<>();
+    private Map<String, BeanDefinition> beanDefinitionMap = new ConcurrentHashMap<>();   //核心
+    private List<BeanPostProcessor> beanPostProcessorList = new ArrayList<>();
+
+
+
+
 
     public ZqqApplicationContext(Class configClass) {
         this.configClass = configClass;
@@ -22,7 +31,10 @@ public class ZqqApplicationContext {
         scan(configClass);
 
         for (Map.Entry<String, BeanDefinition> entry : beanDefinitionMap.entrySet()){
-            Object bean = createBean(entry.getValue());
+            if(singletonObjects.containsKey(entry.getKey())){
+                continue;
+            }
+            Object bean = createBean(entry.getKey(), entry.getValue());
             singletonObjects.put(entry.getKey(), bean);
         }
 
@@ -82,11 +94,13 @@ public class ZqqApplicationContext {
 
     }
 
+
+    //抽取方法 以便能够递归处理file
     private void processFile(String componentScanVaule, ClassLoader classLoader, String filePath) {
         if(!filePath.endsWith(".class")){
             return;
         }
-        System.out.println("componentScanVaule包名下找到的class文件  -->  " + filePath);
+        System.out.println(componentScanVaule + "包名下找到的class文件  -->  " + filePath);
         String fileName = filePath.substring(filePath.lastIndexOf("\\") + 1, filePath.lastIndexOf("."));
         String newPath = componentScanVaule + "." + fileName;
         System.out.println("转换之后的完整的类名 -->  " + newPath);
@@ -96,13 +110,14 @@ public class ZqqApplicationContext {
                 return;
             }
 
+
+
             System.out.println("找到的带有Component注解的class文件" + filePath);
             Component component = clazz.getDeclaredAnnotation(Component.class);
             String beanName = component.value();
             if(Utils.isEmpty(beanName)){
                 beanName = Utils.toLowerCaseFirstOne(fileName);
             }
-
 
             //解析类，判断当前bean是单例bean还是prototype类型bean
             //BeanConfinition
@@ -123,6 +138,15 @@ public class ZqqApplicationContext {
             beanDefinitionMap.put(beanName, beanDefinition);
 
 
+            if(BeanPostProcessor.class.isAssignableFrom(clazz)){
+//                getBean()
+                BeanPostProcessor beanPostProcessor = (BeanPostProcessor) getBean(beanName);
+                beanPostProcessorList.add(beanPostProcessor);
+//                Constructor declaredConstructor1 = clazz.getDeclaredConstructor();
+//                Object o = declaredConstructor1.newInstance();
+//                instance = beanPostProcessor.postProcessBeforeInitialization(instance, beanName);
+            }
+
 
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
@@ -135,9 +159,14 @@ public class ZqqApplicationContext {
             BeanDefinition beanDefinition = (BeanDefinition) beanDefinitionMap.get(beanName);
             if("singleton".equals(beanDefinition.getScope())){
                 bean = singletonObjects.get(beanName);
-            }else{
-                bean = createBean(beanDefinition);
+                if(bean == null){
+                    bean = createBean(beanName, beanDefinition);
+                }
+            }else {
+                bean = createBean(beanName, beanDefinition);
             }
+
+            singletonObjects.put(beanName, bean);
         }else {
             //不存在这个bean
             throw  new RuntimeException("没有定义此bean");
@@ -145,21 +174,49 @@ public class ZqqApplicationContext {
         return bean;
     }
 
-    private Object createBean(BeanDefinition beanDefinition) {
+    private Object createBean(String beanName,BeanDefinition beanDefinition) {
         try {
             Class clazz = beanDefinition.getClazz();
 
             Constructor declaredConstructor = clazz.getDeclaredConstructor();
-
+            Object instance = declaredConstructor.newInstance();
             Field[] declaredFields = clazz.getDeclaredFields();
             for(Field field: declaredFields){
                 if(field.isAnnotationPresent(Autowired.class)){
                     System.out.println("有Autowired注解的filed = " + field);
+                    field.setAccessible(true);
+                    Object bean = getBean(field.getName());
+                    field.set(instance, bean);
                 }
             }
 
-            Object o = declaredConstructor.newInstance();
-            return o;
+            for(BeanPostProcessor beanPostProcessor : beanPostProcessorList){
+                instance = beanPostProcessor.postProcessBeforeInitialization(instance, beanName);
+            }
+
+
+            //初始化
+            if(instance instanceof InitializingBean){
+
+                try {
+                    ((InitializingBean)instance).afterPropertiesSet();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
+            //Aware回调
+            if(instance instanceof BeanNameAware){
+                ((BeanNameAware)instance).setBeanName(beanName);
+            }
+
+
+            for(BeanPostProcessor beanPostProcessor : beanPostProcessorList){
+                instance = beanPostProcessor.postProcessAfterInitialization(instance, beanName);
+            }
+
+
+            return instance;
         } catch (NoSuchMethodException e) {
             e.printStackTrace();
 
