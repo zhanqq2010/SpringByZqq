@@ -33,9 +33,7 @@ public class UserController implements BeanNameAware, InitializingBean {
 
 
     public void test() {
-        System.out.println(userService);
-        System.out.println(beanName);
-        System.out.println(name);
+        userService.test();
     }
 
 
